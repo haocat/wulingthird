@@ -900,7 +900,7 @@ private fun TemperatureSection(status: VehicleStatus) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 InfoItem(label = "车内温度", value = "${status.interiorTemperature}°C")
-                InfoItem(label = "车外温度", value = "${status.exteriorTemperature}°C")
+                InfoItem(label = "空调温度", value = "${status.exteriorTemperature}°C")
                 InfoItem(label = "空调状态", value = if (status.isClimateOn) "开启 (${FormatUtils.getClimateModeText(status.climateMode)})" else "关闭")
             }
         }
