@@ -578,7 +578,7 @@ fun CarStatusApi.toVehicleStatus(
         mileage = mileage ?: 0,
         isCharging = vecChrgingSts == 1,
         interiorTemperature = interiorTemperature ?: 25,
-        exteriorTemperature = accCntTemp ?: 20,
+        exteriorTemperature = accCntTemp ?.toInt() ?: 20,
         gearStatus = autoGearStatus ?: "10",
 
         // 胎压 - 如果API返回的胎压数据为null，则保持默认值0.0，等待单独的胎压API获取
