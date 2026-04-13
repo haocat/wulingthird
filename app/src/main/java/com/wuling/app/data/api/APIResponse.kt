@@ -93,7 +93,7 @@ data class CarStatusApi(
     @SerializedName("obcTemp") val obcTemp: String? = null,
     @SerializedName("invActTemp") val invActTemp: Int? = null,
     @SerializedName("interiorTemperature") val interiorTemperature: Int? = null,
-    @SerializedName("accCntTemp") val accCntTemp: Int? = null,
+    @SerializedName("accCntTemp") val accCntTemp: Double? = null,
     @SerializedName("cdjTemp") val cdjTemp: String? = null,
 
     // 充电
