@@ -246,7 +246,7 @@ fun DetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     DetailRow("车内温度", "${status.interiorTemperature}°C")
-                    DetailRow("车外温度", "${status.exteriorTemperature}°C")
+                    DetailRow("空调温度", "${status.exteriorTemperature}°C")
                     DetailRow("空调状态", if (status.isClimateOn) "开启 (${FormatUtils.getClimateModeText(status.climateMode)})" else "关闭")
                 }
             }
