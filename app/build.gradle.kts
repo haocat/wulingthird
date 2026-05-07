@@ -23,23 +23,28 @@ android {
             useSupportLibrary = true
         }
 
-        // Read sensitive config from local.properties
-        val localProps = rootProject.file("local.properties")
-        val props = Properties()
-        if (localProps.exists()) {
-            props.load(localProps.inputStream())
+        // Read sensitive config from local.properties (fallback to env vars for CI)
+        fun prop(key: String): String {
+            val localProps = rootProject.file("local.properties")
+            if (localProps.exists()) {
+                val props = Properties()
+                props.load(localProps.inputStream())
+                val value = props.getProperty(key, "")
+                if (value.isNotEmpty()) return value
+            }
+            return System.getenv(key.replace(".", "_").uppercase()) ?: ""
         }
 
-        buildConfigField("String", "CLIENT_ID", "\"${props.getProperty("wuling.client.id", "")}\"")
-        buildConfigField("String", "CLIENT_SECRET", "\"${props.getProperty("wuling.client.secret", "")}\"")
-        buildConfigField("String", "APP_CODE", "\"${props.getProperty("wuling.app.code", "")}\"")
-        buildConfigField("String", "APP_VERSION", "\"${props.getProperty("wuling.app.version", "")}\"")
-        buildConfigField("String", "BASE_URL", "\"${props.getProperty("wuling.base.url", "")}\"")
-        buildConfigField("String", "DEVICE_IMEI", "\"${props.getProperty("wuling.device.imei", "")}\"")
-        buildConfigField("String", "DEVICE_MODEL", "\"${props.getProperty("wuling.device.model", "")}\"")
-        buildConfigField("String", "DEVICE_BRAND", "\"${props.getProperty("wuling.device.brand", "")}\"")
-        buildConfigField("String", "API_VERSION", "\"${props.getProperty("wuling.api.version", "")}\"")
-        buildConfigField("String", "API_VERSION_CODE", "\"${props.getProperty("wuling.api.version.code", "")}\"")
+        buildConfigField("String", "CLIENT_ID", "\"${prop("wuling.client.id")}\"")
+        buildConfigField("String", "CLIENT_SECRET", "\"${prop("wuling.client.secret")}\"")
+        buildConfigField("String", "APP_CODE", "\"${prop("wuling.app.code")}\"")
+        buildConfigField("String", "APP_VERSION", "\"${prop("wuling.app.version")}\"")
+        buildConfigField("String", "BASE_URL", "\"${prop("wuling.base.url")}\"")
+        buildConfigField("String", "DEVICE_IMEI", "\"${prop("wuling.device.imei")}\"")
+        buildConfigField("String", "DEVICE_MODEL", "\"${prop("wuling.device.model")}\"")
+        buildConfigField("String", "DEVICE_BRAND", "\"${prop("wuling.device.brand")}\"")
+        buildConfigField("String", "API_VERSION", "\"${prop("wuling.api.version")}\"")
+        buildConfigField("String", "API_VERSION_CODE", "\"${prop("wuling.api.version.code")}\"")
     }
 
     signingConfigs {

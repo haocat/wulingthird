@@ -1,6 +1,7 @@
 五菱汽车车控 APP
  
 本项目是基于 https://github.com/hasscc/wuling  开发的五菱新能源独立开源车控APP，无需Home Assistant环境，直接对接五菱官方车联网接口，为五菱新能源车主提供一站式、全维度的车辆控制与状态监控体验。
+本项目由https://gitee.com/wlsqqq/wuling-automotive-control首发，本人将其转移到github上，如有侵权，会第一时间删除。
  
  
  
