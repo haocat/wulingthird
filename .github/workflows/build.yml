@@ -46,7 +46,7 @@ jobs:
           WULING_DEVICE_BRAND: ${{ secrets.WULING_DEVICE_BRAND || '' }}
           WULING_API_VERSION: ${{ secrets.WULING_API_VERSION || '' }}
           WULING_API_VERSION_CODE: ${{ secrets.WULING_API_VERSION_CODE || '' }}
-        run: java -jar gradle/wrapper/gradle-wrapper.jar assembleRelease
+        run: java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
