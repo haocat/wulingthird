@@ -1,0 +1,2 @@
+# Force LF for gradlew, otherwise CI on Ubuntu can't parse the shebang
+gradlew text eol=lf
