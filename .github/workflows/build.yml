@@ -24,9 +24,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
-
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -39,17 +36,17 @@ jobs:
 
       - name: Build Release APK
         env:
-          WULING_CLIENT_ID: ${{ secrets.WULING_CLIENT_ID }}
-          WULING_CLIENT_SECRET: ${{ secrets.WULING_CLIENT_SECRET }}
-          WULING_APP_CODE: ${{ secrets.WULING_APP_CODE }}
-          WULING_APP_VERSION: ${{ secrets.WULING_APP_VERSION }}
-          WULING_BASE_URL: ${{ secrets.WULING_BASE_URL }}
-          WULING_DEVICE_IMEI: ${{ secrets.WULING_DEVICE_IMEI }}
-          WULING_DEVICE_MODEL: ${{ secrets.WULING_DEVICE_MODEL }}
-          WULING_DEVICE_BRAND: ${{ secrets.WULING_DEVICE_BRAND }}
-          WULING_API_VERSION: ${{ secrets.WULING_API_VERSION }}
-          WULING_API_VERSION_CODE: ${{ secrets.WULING_API_VERSION_CODE }}
-        run: ./gradlew assembleRelease
+          WULING_CLIENT_ID: ${{ secrets.WULING_CLIENT_ID || '' }}
+          WULING_CLIENT_SECRET: ${{ secrets.WULING_CLIENT_SECRET || '' }}
+          WULING_APP_CODE: ${{ secrets.WULING_APP_CODE || '' }}
+          WULING_APP_VERSION: ${{ secrets.WULING_APP_VERSION || '' }}
+          WULING_BASE_URL: ${{ secrets.WULING_BASE_URL || '' }}
+          WULING_DEVICE_IMEI: ${{ secrets.WULING_DEVICE_IMEI || '' }}
+          WULING_DEVICE_MODEL: ${{ secrets.WULING_DEVICE_MODEL || '' }}
+          WULING_DEVICE_BRAND: ${{ secrets.WULING_DEVICE_BRAND || '' }}
+          WULING_API_VERSION: ${{ secrets.WULING_API_VERSION || '' }}
+          WULING_API_VERSION_CODE: ${{ secrets.WULING_API_VERSION_CODE || '' }}
+        run: java -jar gradle/wrapper/gradle-wrapper.jar assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
