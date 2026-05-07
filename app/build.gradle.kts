@@ -29,10 +29,10 @@ android {
             if (localProps.exists()) {
                 val props = Properties()
                 props.load(localProps.inputStream())
-                val value = props.getProperty(key, "")
+                val value = props.getProperty(key, "").trim()
                 if (value.isNotEmpty()) return value
             }
-            return System.getenv(key.replace(".", "_").uppercase()) ?: ""
+            return (System.getenv(key.replace(".", "_").uppercase()) ?: "").trim()
         }
 
         buildConfigField("String", "CLIENT_ID", "\"${prop("wuling.client.id")}\"")
