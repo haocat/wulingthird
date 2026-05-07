@@ -38,7 +38,7 @@ object APIConfig {
     const val systemVersion: String = "10"
 
     val isConfigured: Boolean
-        get() = accessToken.isNotEmpty()
+        get() = accessToken.isNotEmpty() && baseURL.isNotEmpty()
 
     init {
         // 仅在 Debug 模式下打印非敏感信息
