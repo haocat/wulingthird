@@ -78,7 +78,7 @@ android {
 
             // 使用签名配置（如果 keystore 不存在会使用调试签名）
             val releaseSigningConfig = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigningConfig.storeFile.exists()) {
+            signingConfig = if (releaseSigningConfig.storeFile?.exists() == true) {
                 releaseSigningConfig
             } else {
                 signingConfigs.getByName("debug")
