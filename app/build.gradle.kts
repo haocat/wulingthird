@@ -77,11 +77,11 @@ android {
             isCrunchPngs = true
 
             // 使用签名配置（如果 keystore 不存在会使用调试签名）
-            try {
-                signingConfig = signingConfigs.getByName("release")
-            } catch (e: Exception) {
-                // 没有签名文件时使用调试签名
-                signingConfig = signingConfigs.getByName("debug")
+            val releaseSigningConfig = signingConfigs.getByName("release")
+            signingConfig = if (releaseSigningConfig.storeFile.exists()) {
+                releaseSigningConfig
+            } else {
+                signingConfigs.getByName("debug")
             }
         }
     }
