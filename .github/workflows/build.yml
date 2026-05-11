@@ -1,0 +1,56 @@
+name: Build APK
+
+on:
+  push:
+    branches: [master, testkey]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build Release APK
+        env:
+          WULING_CLIENT_ID: ${{ secrets.WULING_CLIENT_ID || '' }}
+          WULING_CLIENT_SECRET: ${{ secrets.WULING_CLIENT_SECRET || '' }}
+          WULING_APP_CODE: ${{ secrets.WULING_APP_CODE || '' }}
+          WULING_APP_VERSION: ${{ secrets.WULING_APP_VERSION || '' }}
+          WULING_BASE_URL: ${{ secrets.WULING_BASE_URL || '' }}
+          WULING_DEVICE_IMEI: ${{ secrets.WULING_DEVICE_IMEI || '' }}
+          WULING_DEVICE_MODEL: ${{ secrets.WULING_DEVICE_MODEL || '' }}
+          WULING_DEVICE_BRAND: ${{ secrets.WULING_DEVICE_BRAND || '' }}
+          WULING_API_VERSION: ${{ secrets.WULING_API_VERSION || '' }}
+          WULING_API_VERSION_CODE: ${{ secrets.WULING_API_VERSION_CODE || '' }}
+        run: java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wuling-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
