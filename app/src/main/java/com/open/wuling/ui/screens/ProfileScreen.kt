@@ -92,8 +92,8 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val user by viewModel.appState.user.collectAsState()
-    val selectedVehicle by viewModel.appState.selectedVehicle.collectAsState()
+    val user by viewModel.vehicleManager.user.collectAsState()
+    val selectedVehicle by viewModel.vehicleManager.selectedVehicle.collectAsState()
     val scrollState = rememberScrollState()
 
     var showTokenDialog by remember { mutableStateOf(false) }
@@ -383,7 +383,7 @@ fun ProfileScreen(
                     iconColor = MaterialTheme.colorScheme.primary,
                     onClick = {
                         scope.launch {
-                            viewModel.appState.fetchAndStoreBleKey()
+                            viewModel.vehicleManager.fetchAndStoreBleKey()
                         }
                     }
                 )
@@ -518,7 +518,7 @@ fun ProfileScreen(
                     onClick = {
                         val trimmedToken = tokenInput.trim()
                         if (trimmedToken.isNotEmpty()) {
-                            viewModel.appState.saveAndConfigureToken(trimmedToken)
+                            viewModel.vehicleManager.saveAndConfigureToken(trimmedToken)
                             showTokenDialog = false
                             tokenInput = ""
                         }
@@ -558,7 +558,7 @@ fun ProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.appState.logout()
+                        viewModel.vehicleManager.logout()
                         showLogoutDialog = false
                         tokenInput = ""
                     },

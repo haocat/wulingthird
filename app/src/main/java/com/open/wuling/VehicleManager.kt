@@ -1,12 +1,8 @@
 package com.open.wuling
 
-import android.content.Context
 import android.util.Log
 import com.open.wuling.ble.BleAutoLockManager
 import com.open.wuling.data.api.APIConfig
-import com.open.wuling.data.api.CommandResponse
-import com.open.wuling.data.local.BleAutoLockPreferences
-import com.open.wuling.data.api.BleKeyResponse
 import com.open.wuling.data.model.ControlCommand
 import com.open.wuling.data.model.User
 import com.open.wuling.data.model.Vehicle
@@ -15,6 +11,7 @@ import com.open.wuling.data.store.TokenStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,20 +21,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AppState @Inject constructor(
+class VehicleManager @Inject constructor(
     private val vehicleRepository: VehicleRepository,
-    private val tokenStore: TokenStore
+    private val tokenStore: TokenStore,
+    private val bleManager: BleAutoLockManager
 ) {
-    private val TAG = "AppState"
+    private val TAG = "VehicleManager"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val _user = MutableStateFlow(User(id = "", name = "用户", phone = ""))
     val user: StateFlow<User> = _user.asStateFlow()
-    
-    // 自动刷新相关
+
     private var autoRefreshJob: kotlinx.coroutines.Job? = null
-    private val refreshInterval = 30000L // 30秒自动刷新一次
+    private val refreshInterval = 30000L
 
     private val _selectedVehicle = MutableStateFlow<Vehicle?>(null)
     val selectedVehicle: StateFlow<Vehicle?> = _selectedVehicle.asStateFlow()
@@ -51,29 +48,34 @@ class AppState @Inject constructor(
     private val _commandResult = MutableStateFlow<CommandResult?>(null)
     val commandResult: StateFlow<CommandResult?> = _commandResult.asStateFlow()
 
-    // BLE 无感控车相关
-    @Volatile
-    var bleAutoLockManager: BleAutoLockManager? = null
-        private set
-    private lateinit var bleAutoLockPreferences: BleAutoLockPreferences
-    private lateinit var appContext: Context
+    fun init() {
+        scope.launch {
+            val savedToken = tokenStore.getToken()
+            if (savedToken.isNotEmpty()) {
+                configure(savedToken)
+                refreshVehicleStatus(showLoading = false)
+                startAutoRefresh()
 
-    val bleConnectionState: StateFlow<BleAutoLockManager.ConnectionState>
-        get() = bleAutoLockManager?.connectionState ?: MutableStateFlow(BleAutoLockManager.ConnectionState.Disconnected).asStateFlow()
+                // Wire BLE callbacks
+                bleManager.onCheckVehicleLocked = {
+                    _selectedVehicle.value?.status?.isLocked ?: true
+                }
+                bleManager.onShowToast = { message ->
+                    _commandResult.value = CommandResult(success = true, message = message)
+                    kotlinx.coroutines.delay(2000)
+                    _commandResult.value = null
+                }
 
-    val bleLogs: StateFlow<List<String>>
-        get() = bleAutoLockManager?.logs ?: MutableStateFlow(emptyList<String>()).asStateFlow()
+                kotlinx.coroutines.delay(1000)
+                val isBleEnabled = bleManager.preferences.enabled.first()
+                val hasMac = bleManager.preferences.bleMac.first().isNotEmpty()
+                if (isBleEnabled && hasMac) {
+                    bleManager.initialize()
+                }
+            }
+        }
+    }
 
-    val scannedDevices: StateFlow<List<BleAutoLockManager.ScannedDevice>>
-        get() = bleAutoLockManager?.scannedDevices ?: MutableStateFlow(emptyList<BleAutoLockManager.ScannedDevice>()).asStateFlow()
-
-    val isScanningAll: StateFlow<Boolean>
-        get() = bleAutoLockManager?.isScanningAll ?: MutableStateFlow(false).asStateFlow()
-
-    val bleFilteredRssi: StateFlow<Int?>
-        get() = bleAutoLockManager?.filteredRssi ?: MutableStateFlow<Int?>(null).asStateFlow()
-
-    /** 从服务器获取 BLE 钥匙并存入本地配置 */
     suspend fun fetchAndStoreBleKey() {
         val vehicle = _selectedVehicle.value ?: return
         val vin = vehicle.vin
@@ -82,13 +84,11 @@ class AppState @Inject constructor(
         val result = vehicleRepository.queryBleKey(vin, userId)
         result.onSuccess { response ->
             val data = response.data ?: return@onSuccess
-            val manager = bleAutoLockManager ?: return@onSuccess
-            manager.addLog("获取到蓝牙钥匙: ${data.bleMac}")
-            bleAutoLockPreferences.setBleKeyData(
+            bleManager.addLog("获取到蓝牙钥匙: ${data.bleMac}")
+            bleManager.preferences.setBleKeyData(
                 bleMac = data.bleMac ?: "",
                 userId = data.userId ?: "",
                 collectTime = data.collectTime ?: "",
-                // keyId是十进制数字,转十六进制: 837503→000CC77F
                 keyId = (data.keyId ?: "").toLongOrNull()?.let { d ->
                     java.lang.Long.toString(d, 16).padStart(8, '0').uppercase()
                 } ?: (data.keyId ?: ""),
@@ -101,131 +101,68 @@ class AppState @Inject constructor(
         }
     }
 
-    fun clearBleLogs() {
-        bleAutoLockManager?.clearLogs()
-    }
-
-    fun startScanAllDevices() {
-        bleAutoLockManager?.startScanAllDevices()
-    }
-
-    fun stopScanAllDevices() {
-        bleAutoLockManager?.stopScanAllDevices()
-    }
-
-    fun clearScannedDevices() {
-        bleAutoLockManager?.clearScannedDevices()
-    }
-
-    /**
-     * 初始化：从持久化存储恢复 Token 和 BLE 配置
-     */
-    fun init(context: Context) {
-        appContext = context.applicationContext
-        bleAutoLockPreferences = BleAutoLockPreferences(appContext)
-        bleAutoLockManager = BleAutoLockManager(
-            context = appContext,
-            preferences = bleAutoLockPreferences,
-            scope = scope
-        ).apply {
-            onCheckVehicleLocked = {
-                _selectedVehicle.value?.status?.isLocked ?: true
-            }
-            onShowToast = { message ->
-                _commandResult.value = CommandResult(success = true, message = message)
-                scope.launch {
-                    kotlinx.coroutines.delay(2000)
-                    _commandResult.value = null
-                }
-            }
-        }
-
-        scope.launch {
-            val savedToken = tokenStore.getToken()
-            if (savedToken.isNotEmpty()) {
-                configure(savedToken)
-                // 自动刷新车辆状态，不显示loading
-                refreshVehicleStatus(showLoading = false)
-                // 启动自动刷新
-                startAutoRefresh()
-                // 自动启动 BLE（如果已启用）
-                kotlinx.coroutines.delay(1000)
-                val isBleEnabled = bleAutoLockPreferences.enabled.first()
-                val hasMac = bleAutoLockPreferences.bleMac.first().isNotEmpty()
-                if (isBleEnabled && hasMac) {
-                    bleAutoLockManager?.initialize()
-                }
-            }
-        }
-    }
-
     fun toggleBleConnection() {
-        val manager = bleAutoLockManager ?: return
-        val currentState = manager.connectionState.value
+        val currentState = bleManager.connectionState.value
         Log.d(TAG, "toggleBleConnection() called, currentState: $currentState")
         scope.launch {
             if (currentState is BleAutoLockManager.ConnectionState.Connected) {
                 Log.d(TAG, "Disconnecting BLE")
-                manager.addLog("断开蓝牙连接")
-                bleAutoLockPreferences.setEnabled(false)
-                manager.destroy()
+                bleManager.addLog("断开蓝牙连接")
+                bleManager.preferences.setEnabled(false)
+                bleManager.destroy()
             } else {
                 Log.d(TAG, "Connecting BLE")
-                manager.addLog("开始连接蓝牙")
-                // 先获取蓝牙 MAC 地址
-                val currentMac = bleAutoLockPreferences.bleMac.first()
+                bleManager.addLog("开始连接蓝牙")
+                val currentMac = bleManager.preferences.bleMac.first()
                 Log.d(TAG, "Current MAC: $currentMac")
-                val currentMasterKey = bleAutoLockPreferences.bleMasterKey.first()
-                manager.addLog("当前保存的 MAC: ${if (currentMac.isEmpty()) "空" else currentMac}")
-                manager.addLog("当前保存的 MasterKey: ${if (currentMasterKey.isEmpty()) "空" else currentMasterKey.take(8)}...")
-                
+                val currentMasterKey = bleManager.preferences.bleMasterKey.first()
+                bleManager.addLog("当前保存的 MAC: ${if (currentMac.isEmpty()) "空" else currentMac}")
+                bleManager.addLog("当前保存的 MasterKey: ${if (currentMasterKey.isEmpty()) "空" else currentMasterKey.take(8)}...")
+
                 if (currentMac.isEmpty() || currentMasterKey.isEmpty()) {
                     Log.d(TAG, "MAC or MasterKey is empty, fetching from API")
-                    manager.addLog("MAC 或密钥为空，从 API 获取")
-                    
-                    // 获取当前车辆信息
+                    bleManager.addLog("MAC 或密钥为空，从 API 获取")
+
                     val currentVehicle = _selectedVehicle.value
                     val vin = currentVehicle?.vin ?: ""
                     val phone = currentVehicle?.carInfo?.bindCarUserMobile ?: ""
-                    
-                    manager.addLog("车辆 VIN: $vin")
-                    manager.addLog("手机号: $phone")
-                    
+
+                    bleManager.addLog("车辆 VIN: $vin")
+                    bleManager.addLog("手机号: $phone")
+
                     if (vin.isEmpty() || phone.isEmpty()) {
-                        manager.addLog("错误: 车辆信息不完整")
+                        bleManager.addLog("错误: 车辆信息不完整")
                         _commandResult.value = CommandResult(success = false, message = "车辆信息不完整，请刷新车辆状态")
                         kotlinx.coroutines.delay(2000)
                         _commandResult.value = null
                         return@launch
                     }
-                    
+
                     Log.d(TAG, "Requesting BLE key with vin: $vin, phone: $phone")
-                    manager.addLog("请求 BLE 钥匙...")
-                    manager.addLog("请求 URL: ${APIConfig.baseURL}/car/control/ble/key/query")
-                    manager.addLog("请求体: {\"vin\":\"$vin\",\"userId\":\"$phone\"}")
-                    
+                    bleManager.addLog("请求 BLE 钥匙...")
+                    bleManager.addLog("请求 URL: ${APIConfig.baseURL}/car/control/ble/key/query")
+                    bleManager.addLog("请求体: {\"vin\":\"$vin\",\"userId\":\"$phone\"}")
+
                     val result = vehicleRepository.queryBleKey(vin, phone)
                     if (result.isSuccess) {
                         val response = result.getOrNull()
                         Log.d(TAG, "API response: $response")
-                        manager.addLog("API 响应成功")
+                        bleManager.addLog("API 响应成功")
                         if (response?.isSuccess == true && response.data?.bleMac != null) {
                             val data = response.data
                             Log.d(TAG, "Setting BLE key data: $data")
-                            manager.addLog("获取到蓝牙 MAC: ${data.bleMac}")
-                            manager.addLog("获取到 userId: ${data.userId}")
-                            manager.addLog("获取到 keyId: ${data.keyId}")
-                            manager.addLog("获取到 keyType: ${data.keyType}")
-                            
-                            // v2.0.0 逻辑: keyId 是十进制数字 → 转十六进制 → 补零到8位
+                            bleManager.addLog("获取到蓝牙 MAC: ${data.bleMac}")
+                            bleManager.addLog("获取到 userId: ${data.userId}")
+                            bleManager.addLog("获取到 keyId: ${data.keyId}")
+
                             var processedKeyId = (data.keyId ?: "").trim()
-                            manager.addLog("原始 keyId: $processedKeyId")
+                            bleManager.addLog("原始 keyId: $processedKeyId")
                             processedKeyId = processedKeyId.toLongOrNull()?.let { dec ->
                                 java.lang.Long.toString(dec, 16).padStart(8, '0').uppercase()
                             } ?: processedKeyId
-                            manager.addLog("转换后 keyId: $processedKeyId")
-                            
-                            bleAutoLockPreferences.setBleKeyData(
+                            bleManager.addLog("转换后 keyId: $processedKeyId")
+
+                            bleManager.preferences.setBleKeyData(
                                 bleMac = data.bleMac ?: "",
                                 userId = data.userId ?: "",
                                 collectTime = data.collectTime ?: "",
@@ -236,11 +173,11 @@ class AppState @Inject constructor(
                                 masterKey = data.masterKey ?: "",
                                 vin = data.vin ?: ""
                             )
-                            bleAutoLockPreferences.setEnabled(true)
-                            manager.initialize()
+                            bleManager.preferences.setEnabled(true)
+                            bleManager.initialize()
                         } else {
                             val errorMsg = response?.errorMessage ?: "获取蓝牙钥匙失败"
-                            manager.addLog("API 返回错误: $errorMsg")
+                            bleManager.addLog("API 返回错误: $errorMsg")
                             _commandResult.value = CommandResult(success = false, message = errorMsg)
                             kotlinx.coroutines.delay(2000)
                             _commandResult.value = null
@@ -248,29 +185,23 @@ class AppState @Inject constructor(
                     } else {
                         val error = result.exceptionOrNull()
                         Log.e(TAG, "API error", error)
-                        manager.addLog("API 请求异常: ${error?.message}")
+                        bleManager.addLog("API 请求异常: ${error?.message}")
                         _commandResult.value = CommandResult(success = false, message = error?.message ?: "获取蓝牙钥匙失败")
                         kotlinx.coroutines.delay(2000)
                         _commandResult.value = null
                     }
                 } else {
                     Log.d(TAG, "MAC already exists, enabling BLE")
-                    manager.addLog("使用已保存的 MAC 地址")
-                    bleAutoLockPreferences.setEnabled(true)
-                    manager.initialize()
+                    bleManager.addLog("使用已保存的 MAC 地址")
+                    bleManager.preferences.setEnabled(true)
+                    bleManager.initialize()
                 }
             }
         }
     }
-    
-    /**
-     * 启动自动刷新
-     */
+
     private fun startAutoRefresh() {
-        // 先停止之前的任务
         stopAutoRefresh()
-        
-        // 启动新的自动刷新任务
         autoRefreshJob = scope.launch {
             while (true) {
                 kotlinx.coroutines.delay(refreshInterval)
@@ -281,10 +212,7 @@ class AppState @Inject constructor(
         }
         Log.d(TAG, "自动刷新已启动，间隔 ${refreshInterval/1000} 秒")
     }
-    
-    /**
-     * 停止自动刷新
-     */
+
     private fun stopAutoRefresh() {
         autoRefreshJob?.cancel()
         autoRefreshJob = null
@@ -297,13 +225,6 @@ class AppState @Inject constructor(
         Log.d(TAG, "APIConfig.isConfigured: ${APIConfig.isConfigured}")
     }
 
-    /**
-     * 刷新车辆状态
-     * @param isQuick 是否快速刷新（仅获取主状态，不获取胎压/昨日里程，保留诊断数据）
-     * @param preserveLock 是否保留本地锁定状态
-     * @param preserveClimate 是否保留本地空调状态
-     * @param showLoading 是否显示加载状态
-     */
     fun refreshVehicleStatus(
         isQuick: Boolean = false,
         preserveLock: Boolean = false,
@@ -455,20 +376,17 @@ class AppState @Inject constructor(
                 ControlCommand.FIND_CAR -> vehicleRepository.searchCar(vehicle.vin)
             }
 
-            result.onSuccess { 
+            result.onSuccess {
                 updateLocalState(command)
                 _commandResult.value = CommandResult(
                     success = true,
                     message = "${command.displayName}成功"
                 )
-                // 记录刚刚通过命令更新的本地状态
                 val preserveLockState = command == ControlCommand.LOCK || command == ControlCommand.UNLOCK
                 val preserveClimateState = command == ControlCommand.CLIMATE_ON || command == ControlCommand.CLIMATE_OFF
-                
-                // 命令执行成功后立即关闭加载状态
+
                 _isLoading.value = false
-                
-                // 控制成功后延迟刷新车辆状态，确保同步
+
                 kotlinx.coroutines.delay(5000)
                 refreshVehicleStatus(preserveLock = preserveLockState, preserveClimate = preserveClimateState, showLoading = false)
             }.onFailure { error ->
@@ -479,34 +397,24 @@ class AppState @Inject constructor(
                 _isLoading.value = false
             }
 
-            // 自动消失提示
             kotlinx.coroutines.delay(2000)
             _commandResult.value = null
         }
     }
 
-    /**
-     * 保存 Token 到持久化存储并刷新车辆状态
-     */
     fun saveAndConfigureToken(token: String) {
         configure(token)
         scope.launch {
             tokenStore.saveToken(token)
-            // 保存后自动刷新车辆状态
             refreshVehicleStatus()
-            // 启动自动刷新
             startAutoRefresh()
         }
     }
 
-    /**
-     * 清除 Token（退出登录）
-     */
     fun logout() {
         APIConfig.setAccessToken("")
         _selectedVehicle.value = null
         _user.value = User(id = "", name = "用户", phone = "")
-        // 停止自动刷新
         stopAutoRefresh()
         scope.launch {
             tokenStore.clearToken()
@@ -532,7 +440,6 @@ class AppState @Inject constructor(
     }
 
     private fun updateVehicleFromAPI(vehicle: Vehicle) {
-        // 更新或添加车辆到列表
         val currentVehicles = _user.value.vehicles.toMutableList()
         val index = currentVehicles.indexOfFirst { it.vin == vehicle.vin }
         if (index >= 0) {
@@ -543,12 +450,10 @@ class AppState @Inject constructor(
             Log.d(TAG, "Vehicle added to list: ${vehicle.displayName}")
         }
 
-        // 更新用户对象
         val updatedUser = _user.value.copy(vehicles = currentVehicles)
         _user.value = updatedUser
         Log.d(TAG, "User updated with ${currentVehicles.size} vehicles")
 
-        // 更新选中车辆
         if (_selectedVehicle.value?.vin == vehicle.vin) {
             _selectedVehicle.value = vehicle
             Log.d(TAG, "Selected vehicle updated: ${vehicle.displayName}")
@@ -593,9 +498,8 @@ class AppState @Inject constructor(
                 success = true,
                 message = successMessage
             )
-            // 命令执行成功后立即关闭加载状态
             _isLoading.value = false
-            
+
             kotlinx.coroutines.delay(5000)
             refreshVehicleStatus(preserveClimate = true, showLoading = false)
         }.onFailure { error ->
@@ -693,8 +597,3 @@ class AppState @Inject constructor(
         _selectedVehicle.value = vehicle
     }
 }
-
-data class CommandResult(
-    val success: Boolean,
-    val message: String
-)

@@ -3,15 +3,18 @@ package com.open.wuling.data.local
 import android.content.Context
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
 private val Context.dataStore by preferencesDataStore(name = "ble_auto_lock")
 
-/**
- * BLE 无感控车配置管理
- */
-class BleAutoLockPreferences(private val context: Context) {
+@Singleton
+class BleAutoLockPreferences @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
     companion object {
         private val KEY_ENABLED = booleanPreferencesKey("enabled")
         private val KEY_BLE_MAC = stringPreferencesKey("ble_mac")

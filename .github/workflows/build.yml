@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [master, testkey]
+    branches: [master, testkey, refactor-appstate-split]
     tags:
       - 'v*'
   pull_request:

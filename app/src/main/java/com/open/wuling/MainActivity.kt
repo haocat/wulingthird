@@ -38,7 +38,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import com.open.wuling.data.local.AmapKeyManager
-import com.open.wuling.data.local.BleAutoLockPreferences
+import com.open.wuling.ble.BleAutoLockManager
 import com.open.wuling.ui.components.ACControlSheet
 import com.open.wuling.ui.components.BleAutoLockSheet
 import com.open.wuling.ui.components.PermissionDeniedDialog
@@ -64,8 +64,6 @@ enum class PermissionType {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private lateinit var bleAutoLockPreferences: BleAutoLockPreferences
-
     private var pendingPermissionType: PermissionType? = null
     private var onPermissionResult: ((Boolean) -> Unit)? = null
 
@@ -81,12 +79,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AmapKeyManager.loadFromPrefs(this)
-        bleAutoLockPreferences = BleAutoLockPreferences(this)
 
         enableEdgeToEdge()
         setContent {
             AppContent(
-                bleAutoLockPreferences = bleAutoLockPreferences,
                 onRequestPermissions = { permissionType, callback ->
                     requestPermissions(permissionType, callback)
                 }
@@ -209,7 +205,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppContent(
     viewModel: MainViewModel = hiltViewModel(),
-    bleAutoLockPreferences: BleAutoLockPreferences,
     onRequestPermissions: (PermissionType, (Boolean) -> Unit) -> Unit
 ) {
     val themePrefs = viewModel.themePreferences
@@ -259,7 +254,6 @@ fun AppContent(
             backgroundImagePath = backgroundImagePath,
             backgroundBlur = backgroundBlur,
             backgroundDimEnabled = backgroundDimEnabled,
-            bleAutoLockPreferences = bleAutoLockPreferences,
             onRequestPermissions = onRequestPermissions
         )
     }
@@ -267,7 +261,8 @@ fun AppContent(
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    val appState: AppState,
+    val vehicleManager: VehicleManager,
+    val bleManager: BleAutoLockManager,
     val themePreferences: com.open.wuling.data.local.ThemePreferences
 ) : ViewModel() {
 
@@ -286,25 +281,25 @@ fun MainScreen(
     backgroundImagePath: String? = null,
     backgroundBlur: Float = 0f,
     backgroundDimEnabled: Boolean = true,
-    bleAutoLockPreferences: BleAutoLockPreferences,
     onRequestPermissions: (PermissionType, (Boolean) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
-    val appState = viewModel.appState
-    
+    val vehicleManager = viewModel.vehicleManager
+    val bleManager = viewModel.bleManager
+
     LaunchedEffect(Unit) {
-        appState.init(context)
+        vehicleManager.init()
     }
-    
-    val selectedVehicle by appState.selectedVehicle.collectAsState()
-    val isLoading by appState.isLoading.collectAsState()
-    val errorMessage by appState.errorMessage.collectAsState()
-    val commandResult by appState.commandResult.collectAsState()
-    val bleConnectionState by appState.bleConnectionState.collectAsState()
-    val bleFilteredRssi by appState.bleFilteredRssi.collectAsState()
-    val bleLogs by appState.bleLogs.collectAsState()
-    val scannedDevices by appState.scannedDevices.collectAsState()
-    val isScanningAll by appState.isScanningAll.collectAsState()
+
+    val selectedVehicle by vehicleManager.selectedVehicle.collectAsState()
+    val isLoading by vehicleManager.isLoading.collectAsState()
+    val errorMessage by vehicleManager.errorMessage.collectAsState()
+    val commandResult by vehicleManager.commandResult.collectAsState()
+    val bleConnectionState by bleManager.connectionState.collectAsState()
+    val bleFilteredRssi by bleManager.filteredRssi.collectAsState()
+    val bleLogs by bleManager.logs.collectAsState()
+    val scannedDevices by bleManager.scannedDevices.collectAsState()
+    val isScanningAll by bleManager.isScanningAll.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showACControl by remember { mutableStateOf(false) }
@@ -412,16 +407,16 @@ fun MainScreen(
                     isLoading = isLoading,
                     errorMessage = errorMessage,
                     commandResult = commandResult,
-                    onRefresh = { appState.refreshVehicleStatus() },
+                    onRefresh = { vehicleManager.refreshVehicleStatus() },
                     onCommand = { command ->
                         if (command == com.open.wuling.data.model.ControlCommand.CLIMATE_ON ||
                             command == com.open.wuling.data.model.ControlCommand.CLIMATE_OFF) {
                             showACControl = true
                         } else {
-                            appState.executeCommand(command)
+                            vehicleManager.executeCommand(command)
                         }
                     },
-                    onClearError = { appState.clearError() },
+                    onClearError = { vehicleManager.clearError() },
                     onOpenBleSettings = {
                         val hasBluetoothPermission = checkBluetoothPermission()
                         val hasNotificationPermission = checkNotificationPermission()
@@ -435,14 +430,14 @@ fun MainScreen(
                         }
                     },
                     bleConnectionState = bleConnectionState,
-                    onToggleBleConnection = { appState.toggleBleConnection() },
+                    onToggleBleConnection = { vehicleManager.toggleBleConnection() },
                     bleFilteredRssi = bleFilteredRssi
                 )
                 1 -> DetailScreen(
                     modifier = Modifier.padding(paddingValues),
                     vehicle = selectedVehicle,
-                    onRefresh = { appState.refreshVehicleStatus() },
-                    onQuickRefresh = { appState.refreshVehicleStatus(isQuick = true, showLoading = false) }
+                    onRefresh = { vehicleManager.refreshVehicleStatus() },
+                    onQuickRefresh = { vehicleManager.refreshVehicleStatus(isQuick = true, showLoading = false) }
                 )
                 2 -> LocationScreen(
                     modifier = Modifier.padding(paddingValues),
@@ -461,26 +456,26 @@ fun MainScreen(
         currentFanLevel = 3,
         onClose = { showACControl = false },
         onQuickCool = {
-            appState.executeQuickCool()
+            vehicleManager.executeQuickCool()
             showACControl = false
         },
         onQuickHeat = {
-            appState.executeQuickHeat()
+            vehicleManager.executeQuickHeat()
             showACControl = false
         },
         onCustomControl = { temperature, fanLevel, turnOn ->
-            appState.executeCustomClimateCommand(temperature, fanLevel, turnOn)
+            vehicleManager.executeCustomClimateCommand(temperature, fanLevel, turnOn)
             showACControl = false
         }
     )
 
     BleAutoLockSheet(
         isOpen = showBleSettings,
-        preferences = bleAutoLockPreferences,
-        bleManager = viewModel.appState.bleAutoLockManager,
+        preferences = bleManager.preferences,
+        bleManager = bleManager,
         connectionState = bleConnectionState,
         logs = bleLogs,
-        onClearLogs = { appState.clearBleLogs() },
+        onClearLogs = { bleManager.clearLogs() },
         onCopyLogs = {
             val clipboard = android.content.Context.CLIPBOARD_SERVICE
             val manager = context.getSystemService(clipboard) as android.content.ClipboardManager
@@ -490,9 +485,9 @@ fun MainScreen(
         },
         scannedDevices = scannedDevices,
         isScanningAll = isScanningAll,
-        onStartScanAll = { appState.startScanAllDevices() },
-        onStopScanAll = { appState.stopScanAllDevices() },
-        onClearScannedDevices = { appState.clearScannedDevices() },
+        onStartScanAll = { bleManager.startScanAllDevices() },
+        onStopScanAll = { bleManager.stopScanAllDevices() },
+        onClearScannedDevices = { bleManager.clearScannedDevices() },
         onClose = { showBleSettings = false }
     )
 

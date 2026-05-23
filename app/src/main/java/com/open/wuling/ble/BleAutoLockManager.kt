@@ -22,6 +22,7 @@ import com.open.wuling.data.local.BleAutoLockPreferences
 import com.open.wuling.util.BleAuthUtils
 import com.open.wuling.util.NativeFreeProtocolUtils
 import com.open.wuling.util.RssiFilter
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.SecureRandom
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,16 +30,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * BLE 无感控车管理器
  * 负责蓝牙扫描、连接、RSSI 监控和自动解锁/上锁逻辑
  */
-class BleAutoLockManager(
-    private val context: Context,
-    private val preferences: BleAutoLockPreferences,
-    private val scope: CoroutineScope
+@Singleton
+class BleAutoLockManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    val preferences: BleAutoLockPreferences
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     companion object {
         private const val TAG = "BleAutoLockManager"
         private const val RSSI_READ_INTERVAL = 1000L
