@@ -62,8 +62,10 @@ class VehicleManager @Inject constructor(
                 }
                 bleManager.onShowToast = { message ->
                     _commandResult.value = CommandResult(success = true, message = message)
-                    kotlinx.coroutines.delay(2000)
-                    _commandResult.value = null
+                    scope.launch {
+                        kotlinx.coroutines.delay(2000)
+                        _commandResult.value = null
+                    }
                 }
 
                 kotlinx.coroutines.delay(1000)
@@ -597,3 +599,8 @@ class VehicleManager @Inject constructor(
         _selectedVehicle.value = vehicle
     }
 }
+
+data class CommandResult(
+    val success: Boolean,
+    val message: String
+)
