@@ -295,6 +295,13 @@ class VehicleRepository @Inject constructor(
         api.controlAC(params)
     }
 
+    suspend fun controlTailgate(vin: String, status: Int): Result<com.open.wuling.data.api.CommandResponse> = withContext(Dispatchers.IO) {
+        if (!APIConfig.isConfigured) {
+            return@withContext Result.failure(APIError("请先配置 Access Token"))
+        }
+        api.controlTailgate(vin, status)
+    }
+
     suspend fun queryBleKey(vin: String, userId: String): Result<BleKeyResponse> = withContext(Dispatchers.IO) {
         if (!APIConfig.isConfigured) {
             return@withContext Result.failure(APIError("请先配置 Access Token"))

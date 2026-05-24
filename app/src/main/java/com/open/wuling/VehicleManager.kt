@@ -374,8 +374,9 @@ class VehicleManager @Inject constructor(
                 ))
                 ControlCommand.FLASH -> vehicleRepository.sendCommand("flash")
                 ControlCommand.HONK -> vehicleRepository.sendCommand("honk")
-                ControlCommand.TRUNK -> vehicleRepository.sendCommand("trunk")
+                ControlCommand.TRUNK -> vehicleRepository.controlTailgate(vehicle.vin, 0)
                 ControlCommand.FIND_CAR -> vehicleRepository.searchCar(vehicle.vin)
+                ControlCommand.START -> vehicleRepository.authorizeIgnition(vehicle.vin)
             }
 
             result.onSuccess {

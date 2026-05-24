@@ -540,6 +540,44 @@ class WulingAPI @Inject constructor() {
         }
     }
 
+    suspend fun controlTailgate(vin: String, status: Int): Result<CommandResponse> = withContext(Dispatchers.IO) {
+        if (!APIConfig.isConfigured) {
+            return@withContext Result.failure(APIError("请先配置 Access Token"))
+        }
+
+        executeWithRetry {
+            requestMutex.withLock {
+                try {
+                    val timestamp = System.currentTimeMillis().toString()
+                    val nonce = generateRandomLetters(10)
+                    val headers = buildCommonHeaders(APIConfig.accessToken, timestamp, nonce)
+
+                    val params = mapOf(
+                        "vin" to vin,
+                        "status" to status.toString()
+                    )
+                    val jsonBody = gson.toJson(params)
+
+                    val requestBuilder = Request.Builder()
+                        .url("${APIConfig.baseURL}/car/control/tailgate")
+                        .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                    headers.forEach { (key, value) -> requestBuilder.header(key, value) }
+
+                    val response = client.newCall(requestBuilder.build()).execute()
+                    val body = response.body?.string()
+
+                    if (body != null) {
+                        Result.success(gson.fromJson(body, CommandResponse::class.java))
+                    } else {
+                        Result.failure(APIError("网络错误"))
+                    }
+                } catch (e: Exception) {
+                    Result.failure(APIError(e.message ?: "网络错误"))
+                }
+            }
+        }
+    }
+
 }
 
 // Extension to convert API response to VehicleStatus

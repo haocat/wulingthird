@@ -477,7 +477,7 @@ private fun QuickControlSection(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 一排4个快捷按钮
+            // 第一排 3 个
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -503,12 +503,26 @@ private fun QuickControlSection(
                     color = PrimaryPurple,
                     onClick = { onCommand(ControlCommand.TRUNK) }
                 )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // 第二排 2 个
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 ControlButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Search,
                     label = "寻车",
                     color = MaterialTheme.colorScheme.primary,
                     onClick = { onCommand(ControlCommand.FIND_CAR) }
+                )
+                ControlButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.PowerSettingsNew,
+                    label = "启动",
+                    color = PrimaryGreen,
+                    onClick = { onCommand(ControlCommand.START) }
                 )
             }
         }

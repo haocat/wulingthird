@@ -215,7 +215,8 @@ enum class ControlCommand(val rawValue: String, val displayName: String) {
     FLASH("flashLight", "闪灯"),
     HONK("honk", "鸣笛"),
     TRUNK("openTailBox", "尾箱"),
-    FIND_CAR("findCar", "寻车")
+    FIND_CAR("findCar", "寻车"),
+    START("start", "启动")
 }
 
 // ============== Mock Data ==============
