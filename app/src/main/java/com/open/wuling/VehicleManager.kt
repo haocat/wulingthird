@@ -592,6 +592,41 @@ class VehicleManager @Inject constructor(
         }
     }
 
+    fun executeWindowControl(status: Int) {
+        if (!APIConfig.isConfigured) {
+            _errorMessage.value = "请先配置 Access Token"
+            return
+        }
+
+        scope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            val vehicle = _selectedVehicle.value
+            if (vehicle == null) {
+                _commandResult.value = CommandResult(success = false, message = "请先选择车辆")
+                _isLoading.value = false
+                return@launch
+            }
+
+            val actionName = if (status == 1) "升窗" else "降窗"
+            vehicleRepository.controlWindow(vehicle.vin, status)
+                .onSuccess {
+                    _commandResult.value = CommandResult(success = true, message = "一键${actionName}成功")
+                    _isLoading.value = false
+                    kotlinx.coroutines.delay(5000)
+                    refreshVehicleStatus(showLoading = false)
+                }
+                .onFailure { error ->
+                    _commandResult.value = CommandResult(success = false, message = error.message ?: "车窗控制失败")
+                    _isLoading.value = false
+                }
+
+            kotlinx.coroutines.delay(2000)
+            _commandResult.value = null
+        }
+    }
+
     fun clearError() {
         _errorMessage.value = null
     }

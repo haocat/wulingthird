@@ -41,7 +41,8 @@ fun HomeScreen(
     onOpenBleSettings: () -> Unit = {},
     bleConnectionState: BleAutoLockManager.ConnectionState = BleAutoLockManager.ConnectionState.Disconnected,
     onToggleBleConnection: () -> Unit = {},
-    bleFilteredRssi: Int? = null
+    bleFilteredRssi: Int? = null,
+    onWindowControl: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -157,10 +158,14 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 快捷控制按钮
+                val win = vehicle.status.windows
+                val isAnyWindowOpen = win.frontLeft || win.frontRight || win.rearLeft || win.rearRight
                 QuickControlSection(
                     isLocked = vehicle.status.isLocked,
                     isClimateOn = vehicle.status.isClimateOn,
-                    onCommand = onCommand
+                    isAnyWindowOpen = isAnyWindowOpen,
+                    onCommand = onCommand,
+                    onWindowControl = onWindowControl
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -461,7 +466,9 @@ private fun RangeInfoItem(label: String, value: String, unit: String, color: Col
 private fun QuickControlSection(
     isLocked: Boolean,
     isClimateOn: Boolean,
-    onCommand: (ControlCommand) -> Unit
+    isAnyWindowOpen: Boolean,
+    onCommand: (ControlCommand) -> Unit,
+    onWindowControl: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -505,11 +512,18 @@ private fun QuickControlSection(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            // 第二排 2 个
+            // 第二排 3 个
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                ControlButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Window,
+                    label = "车窗",
+                    color = if (isAnyWindowOpen) PrimaryOrange else PrimaryGreen,
+                    onClick = onWindowControl
+                )
                 ControlButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Search,

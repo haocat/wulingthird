@@ -41,6 +41,7 @@ import com.open.wuling.data.local.AmapKeyManager
 import com.open.wuling.ble.BleAutoLockManager
 import com.open.wuling.ui.components.ACControlSheet
 import com.open.wuling.ui.components.BleAutoLockSheet
+import com.open.wuling.ui.components.WindowControlSheet
 import com.open.wuling.ui.components.PermissionDeniedDialog
 import com.open.wuling.ui.components.PermissionRequestDialog
 import com.open.wuling.ui.components.openAppSettings
@@ -303,6 +304,7 @@ fun MainScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showACControl by remember { mutableStateOf(false) }
+    var showWindowControl by remember { mutableStateOf(false) }
     var showBleSettings by remember { mutableStateOf(false) }
 
     var showBluetoothPermissionDialog by remember { mutableStateOf(false) }
@@ -431,7 +433,8 @@ fun MainScreen(
                     },
                     bleConnectionState = bleConnectionState,
                     onToggleBleConnection = { vehicleManager.toggleBleConnection() },
-                    bleFilteredRssi = bleFilteredRssi
+                    bleFilteredRssi = bleFilteredRssi,
+                    onWindowControl = { showWindowControl = true }
                 )
                 1 -> DetailScreen(
                     modifier = Modifier.padding(paddingValues),
@@ -466,6 +469,19 @@ fun MainScreen(
         onCustomControl = { temperature, fanLevel, turnOn ->
             vehicleManager.executeCustomClimateCommand(temperature, fanLevel, turnOn)
             showACControl = false
+        }
+    )
+
+    WindowControlSheet(
+        isOpen = showWindowControl,
+        onClose = { showWindowControl = false },
+        onCloseAll = {
+            vehicleManager.executeWindowControl(1)
+            showWindowControl = false
+        },
+        onOpenAll = {
+            vehicleManager.executeWindowControl(0)
+            showWindowControl = false
         }
     )
 
